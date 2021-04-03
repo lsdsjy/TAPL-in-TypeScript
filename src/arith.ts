@@ -177,13 +177,54 @@ export function evaluation(term: term): term {
   return t === undefined ? term : evaluation(t);
 }
 
+export function bigStepEval(term: term): term {
+  let operand: term;
+  switch (term.kind) {
+    case 'true':
+    case 'false':
+    case 'zero':
+      return term;
+
+    case 'is_zero':
+      operand = bigStepEval(term.n);
+      if (operand.kind === 'zero') {
+        return { kind: 'true', info: dummy_info };
+      } else if (operand.kind === 'succ') {
+        return { kind: 'false', info: dummy_info };
+      }
+      return { kind: 'is_zero', n: operand, info: dummy_info };
+    case 'succ':
+      return { ...term, n: bigStepEval(term.n) };
+    case 'pred':
+      operand = bigStepEval(term.n);
+      if (operand.kind === 'zero') {
+        return operand;
+      } else if (operand.kind === 'succ') {
+        return operand.n;
+      } else {
+        return { ...term, n: operand };
+      }
+    case 'if':
+      const condition = bigStepEval(term.condition);
+      if (condition.kind === 'true') {
+        return bigStepEval(term.then);
+      } else if (condition.kind === 'false') {
+        return bigStepEval(term.else);
+      } else {
+        throw new Error('illegal condition');
+      }
+    default:
+      exhaustiveCheck(term);
+  }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Process commands
 
 function process_command(command: command) {
   assert.strictEqual(command.kind, 'eval' as const);
   return {
-    string: term2string(evaluation(command.term)) + ';\n',
+    string: term2string(bigStepEval(command.term)) + ';\n',
   } as const;
 }
 
